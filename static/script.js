@@ -337,32 +337,48 @@ async function downloadVideo() {
                 format: selectedFormat,
                 format_id: selectedFormatId
             }),
-            signal: downloadAbortController.signal  // Enable cancellation
+            signal: downloadAbortController.signal
         });
-        
+
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Download failed');
         }
-        
-        // Get the blob from response
-        const blob = await response.blob();
-        
+
         // Get filename from Content-Disposition header or generate one
         const contentDisposition = response.headers.get('Content-Disposition');
         let filename = 'download';
-        
         if (contentDisposition) {
             const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
             if (filenameMatch) {
                 filename = filenameMatch[1];
             }
         } else {
-            // Generate filename based on title and format
             const ext = selectedFormat === 'audio' ? 'mp3' : 'mp4';
             filename = `${currentVideoData.title.substring(0, 50)}.${ext}`;
         }
-        
+
+        // Stream the response and update progress bar
+        const contentLength = response.headers.get('Content-Length');
+        const total = contentLength ? parseInt(contentLength, 10) : null;
+        const reader = response.body.getReader();
+        let received = 0;
+        let chunks = [];
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.length;
+            if (total) {
+                const percent = Math.round((received / total) * 100);
+                document.querySelector('.progress-fill').style.width = percent + '%';
+                document.querySelector('.progress-text').textContent = `Downloading... ${percent}%`;
+            } else {
+                document.querySelector('.progress-text').textContent = `Downloading... (${formatFilesize(received)})`;
+            }
+        }
+        // Combine chunks into a blob
+        const blob = new Blob(chunks);
         // Create download link and trigger download
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -370,23 +386,17 @@ async function downloadVideo() {
         a.download = filename;
         document.body.appendChild(a);
         a.click();
-        
-        // Cleanup
         window.URL.revokeObjectURL(downloadUrl);
         document.body.removeChild(a);
-        
-        // Update progress text
+        document.querySelector('.progress-fill').style.width = '100%';
         document.querySelector('.progress-text').textContent = '✅ Download complete!';
-        
-        // Hide progress and cancel button after 3 seconds
         setTimeout(() => {
             downloadProgress.classList.remove('show');
             cancelBtn.classList.remove('show');
+            document.querySelector('.progress-fill').style.width = '0%';
             document.querySelector('.progress-text').textContent = 'Preparing download...';
         }, 3000);
-        
     } catch (error) {
-        // Check if error is from cancellation
         if (error.name === 'AbortError') {
             console.log('Download was cancelled by user');
         } else {
@@ -395,6 +405,7 @@ async function downloadVideo() {
         }
         downloadProgress.classList.remove('show');
         cancelBtn.classList.remove('show');
+        document.querySelector('.progress-fill').style.width = '0%';
     } finally {
         setButtonLoading(downloadBtn, false);
         downloadAbortController = null;
