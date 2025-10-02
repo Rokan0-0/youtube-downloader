@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader</title>
+    <!-- Link to external CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Header Section -->
+        <header>
+            <h1>🎬 YouTube Downloader</h1>
+            <p class="subtitle">Download YouTube videos and audio in high quality</p>
+        </header>
+
+        <!-- Main Content Area -->
+        <main>
+            <!-- URL Input Section -->
+            <div class="input-section">
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="videoUrl" 
+                        placeholder="Paste YouTube URL here..."
+                        autocomplete="off"
+                    >
+                    <button id="fetchBtn" class="btn btn-primary">
+                        Get Video Info
+                    </button>
+                </div>
+                <!-- Error message display -->
+                <div id="errorMessage" class="error-message"></div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="loading-spinner">
+                <div class="spinner"></div>
+                <p>Fetching video information...</p>
+            </div>
+
+            <!-- Video Information Display -->
+            <div id="videoInfo" class="video-info">
+                <!-- Thumbnail -->
+                <div class="thumbnail-container">
+                    <img id="videoThumbnail" src="" alt="Video Thumbnail">
+                </div>
+
+                <!-- Video Details -->
+                <div class="video-details">
+                    <h2 id="videoTitle"></h2>
+                    <div class="video-meta">
+                        <span id="videoChannel" class="meta-item"></span>
+                        <span id="videoDuration" class="meta-item"></span>
+                        <span id="videoViews" class="meta-item"></span>
+                    </div>
+                </div>
+
+                <!-- Download Options -->
+                <div class="download-section">
+                    <h3>Download Options</h3>
+                    
+                    <!-- Format Selection (Video/Audio) -->
+                    <div class="format-selection">
+                        <label class="radio-label">
+                            <input type="radio" name="format" value="video" checked>
+                            <span>📹 Video</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="format" value="audio">
+                            <span>🎵 Audio (MP3)</span>
+                        </label>
+                    </div>
+
+                    <!-- Quality Selection (for video only) -->
+                    <div id="qualitySection" class="quality-section">
+                        <label for="qualitySelect">Select Quality:</label>
+                        <select id="qualitySelect" class="quality-select">
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                        <p id="filesizeInfo" class="filesize-info">📦 Estimated size: <span id="filesizeValue">--</span></p>
+                    </div>
+
+                    <!-- Download Button -->
+                    <button id="downloadBtn" class="btn btn-download">
+                        ⬇️ Download
+                    </button>
+
+                    <!-- Download Progress -->
+                    <div id="downloadProgress" class="download-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <p class="progress-text">Preparing download...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <p>⚠️ <strong>Disclaimer:</strong> Please respect copyright laws and YouTube's Terms of Service. 
+            This tool is for personal use only.</p>
+            <p class="footer-note">Made with ❤️ for personal use</p>
+        </footer>
+    </div>
+
+    <!-- Link to external JavaScript -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
