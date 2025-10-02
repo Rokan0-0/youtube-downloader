@@ -251,22 +251,142 @@ def download_video():
 
             # Construct the filename
             if download_format == 'audio':
-                filename = sanitize_filename(info['title']) + '.mp3'
+                ext = '.mp3'
             else:
-                filename = sanitize_filename(info['title']) + '.mp4'
-
-            filepath = os.path.join(DOWNLOAD_FOLDER, filename)
-
-            # Check if file exists
-            if not os.path.exists(filepath):
-                # Sometimes yt-dlp names files differently, try to find it
-                possible_files = [f for f in os.listdir(DOWNLOAD_FOLDER)
-                                 if f.startswith(sanitize_filename(info['title']))]
-                if possible_files:
-                    filepath = os.path.join(DOWNLOAD_FOLDER, possible_files[0])
-                    filename = possible_files[0]
-                else:
+                # Get extension from info or fallback to .mp4
+                ext = '.' + (info.get('ext') or 'mp4')
+            base_name = sanitize_filename(info['title'])
+            # Find the correct file (yt-dlp may append extra info)
+            # Find all files that start with base_name and end with ext (no trailing underscores or .part)
+            possible_files = [f for f in os.listdir(DOWNLOAD_FOLDER)
+                             if f.startswith(base_name) and f.endswith(ext) and not f.endswith(ext + '_') and not f.endswith('.part')]
+            if possible_files:
+                # Pick the shortest filename (most likely correct)
+                filename = min(possible_files, key=len)
+                filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+            else:
+                # Fallback to original logic
+                filename = base_name + ext
+                filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+                if not os.path.exists(filepath):
                     return jsonify({'error': 'Download completed but file not found'}), 500
+
+            # If filename ends with .mp4_ or .webm_, rename to .mp4 or .webm
+            if filename.endswith('.mp4_'):
+                new_filename = filename[:-1]
+                new_filepath = os.path.join(DOWNLOAD_FOLDER, new_filename)
+                os.rename(filepath, new_filepath)
+                filename = new_filename
+                filepath = new_filepath
+            elif filename.endswith('.webm_'):
+                new_filename = filename[:-1]
+                new_filepath = os.path.join(DOWNLOAD_FOLDER, new_filename)
+                os.rename(filepath, new_filepath)
+                filename = new_filename
+                filepath = new_filepath
+
+            # Send file to user
+            response = send_file(
+                filepath,
+                as_attachment=True,
+                download_name=filename
+            )
+
+            # Delete file after sending (cleanup)
+            @response.call_on_close
+            def cleanup():
+                try:
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                except Exception as e:
+                    print(f"Error cleaning up file: {e}")
+
+            return response
+
+    except Exception as e:
+        print(f"Format ID: {format_id}")
+        print(f"{'='*50}\n")
+
+        # Validate URL
+        if not url:
+            return jsonify({'error': 'URL is required'}), 400
+
+        if not validate_youtube_url(url):
+            return jsonify({'error': 'Invalid YouTube URL'}), 400
+
+        # Configure download options based on format
+        if download_format == 'audio':
+            # Audio-only download (MP3)
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
+                'quiet': False,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'nocheckcertificate': True,
+                'age_limit': None,
+            }
+        else:
+            # Video download with selected format_id
+            ydl_opts = {
+                'format': format_id,
+                'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
+                'merge_output_format': 'mp4',
+                'quiet': False,
+                'verbose': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'nocheckcertificate': True,
+                'age_limit': None,
+                'postprocessors': [{
+                    'key': 'FFmpegVideoConvertor',
+                    'preferedformat': 'mp4',
+                }],
+            }
+
+        # Download the video/audio
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Extract info to get the final filename
+            info = ydl.extract_info(url, download=True)
+
+            # Construct the filename
+            if download_format == 'audio':
+                ext = '.mp3'
+            else:
+                # Get extension from info or fallback to .mp4
+                ext = '.' + (info.get('ext') or 'mp4')
+            base_name = sanitize_filename(info['title'])
+            # Find the correct file (yt-dlp may append extra info)
+            # Find all files that start with base_name and end with ext (no trailing underscores or .part)
+            possible_files = [f for f in os.listdir(DOWNLOAD_FOLDER)
+                             if f.startswith(base_name) and f.endswith(ext) and not f.endswith(ext + '_') and not f.endswith('.part')]
+            if possible_files:
+                # Pick the shortest filename (most likely correct)
+                filename = min(possible_files, key=len)
+                filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+            else:
+                # Fallback to original logic
+                filename = base_name + ext
+                filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+                if not os.path.exists(filepath):
+                    return jsonify({'error': 'Download completed but file not found'}), 500
+
+            # If filename ends with .mp4_ or .webm_, rename to .mp4 or .webm
+            if filename.endswith('.mp4_'):
+                new_filename = filename[:-1]
+                new_filepath = os.path.join(DOWNLOAD_FOLDER, new_filename)
+                os.rename(filepath, new_filepath)
+                filename = new_filename
+                filepath = new_filepath
+            elif filename.endswith('.webm_'):
+                new_filename = filename[:-1]
+                new_filepath = os.path.join(DOWNLOAD_FOLDER, new_filename)
+                os.rename(filepath, new_filepath)
+                filename = new_filename
+                filepath = new_filepath
 
             # Send file to user
             response = send_file(
