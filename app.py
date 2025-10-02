@@ -112,16 +112,21 @@ def get_video_info():
             # Get available formats - be more inclusive to see ALL qualities
 
 
+
             formats = []
             for f in info.get('formats', []):
-                # Only include formats with a valid URL
+                # Only include formats with a valid URL and ext mp4/webm and filesize
                 if not f.get('url'):
+                    continue
+                ext = f.get('ext', 'mp4')
+                if ext not in ['mp4', 'webm']:
+                    continue
+                filesize = f.get('filesize') or f.get('filesize_approx')
+                if not filesize:
                     continue
                 vcodec = f.get('vcodec', 'none')
                 acodec = f.get('acodec', 'none')
                 height = f.get('height')
-                ext = f.get('ext', 'mp4')
-                filesize = f.get('filesize') or f.get('filesize_approx') or 0
                 format_id = f.get('format_id')
                 # Video formats (has video, height >= 144)
                 if vcodec != 'none' and height and height >= 144:
@@ -132,7 +137,7 @@ def get_video_info():
                         'quality': quality,
                         'ext': ext,
                         'filesize': filesize,
-                        'filesize_mb': round(filesize / (1024 * 1024), 2) if filesize else 0,
+                        'filesize_mb': round(filesize / (1024 * 1024), 2),
                         'has_audio': has_audio,
                         'height': height
                     })
@@ -143,7 +148,7 @@ def get_video_info():
                         'quality': 'audio',
                         'ext': ext,
                         'filesize': filesize,
-                        'filesize_mb': round(filesize / (1024 * 1024), 2) if filesize else 0,
+                        'filesize_mb': round(filesize / (1024 * 1024), 2),
                         'has_audio': True,
                         'height': None
                     })
@@ -190,22 +195,22 @@ def download_video():
         data = request.get_json()
         url = data.get('url', '').strip()
         download_format = data.get('format', 'video')  # 'video' or 'audio'
-        quality = data.get('quality', '720p')
-        
+        format_id = data.get('format_id')
+
         print(f"\n{'='*50}")
         print(f"Download Request:")
         print(f"URL: {url}")
         print(f"Format: {download_format}")
-        print(f"Quality: {quality}")
+        print(f"Format ID: {format_id}")
         print(f"{'='*50}\n")
-        
+
         # Validate URL
         if not url:
             return jsonify({'error': 'URL is required'}), 400
-        
+
         if not validate_youtube_url(url):
             return jsonify({'error': 'Invalid YouTube URL'}), 400
-        
+
         # Configure download options based on format
         if download_format == 'audio':
             # Audio-only download (MP3)
@@ -218,81 +223,58 @@ def download_video():
                 }],
                 'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
                 'quiet': False,
-                # Add headers and extractor args to avoid 403 errors
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['ios', 'android'],
-                        'player_skip': ['configs'],
-                    }
-                },
                 'nocheckcertificate': True,
                 'age_limit': None,
             }
         else:
-            # Video download with specified quality
-            # Extract quality number (e.g., "720p" -> "720")
-            quality_num = quality.replace('p', '')
-            
+            # Video download with selected format_id
             ydl_opts = {
-                # Download best video at selected quality + best audio, then merge
-                # This handles video-only formats by automatically merging with audio
-                'format': (
-                    f'bestvideo[height<={quality_num}]+bestaudio/best[height<={quality_num}]'
-                ),
+                'format': format_id,
                 'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-                'merge_output_format': 'mp4',  # Merge to MP4
+                'merge_output_format': 'mp4',
                 'quiet': False,
                 'verbose': True,
-                # Add headers and extractor args
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['web', 'ios', 'android', 'mweb'],
-                        'player_skip': ['webpage'],
-                        'skip': ['hls', 'dash'],
-                    }
-                },
                 'nocheckcertificate': True,
                 'age_limit': None,
-                # Ensure FFmpeg is used for merging
                 'postprocessors': [{
                     'key': 'FFmpegVideoConvertor',
                     'preferedformat': 'mp4',
                 }],
             }
-        
+
         # Download the video/audio
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Extract info to get the final filename
             info = ydl.extract_info(url, download=True)
-            
+
             # Construct the filename
             if download_format == 'audio':
                 filename = sanitize_filename(info['title']) + '.mp3'
             else:
                 filename = sanitize_filename(info['title']) + '.mp4'
-            
+
             filepath = os.path.join(DOWNLOAD_FOLDER, filename)
-            
+
             # Check if file exists
             if not os.path.exists(filepath):
                 # Sometimes yt-dlp names files differently, try to find it
-                possible_files = [f for f in os.listdir(DOWNLOAD_FOLDER) 
+                possible_files = [f for f in os.listdir(DOWNLOAD_FOLDER)
                                  if f.startswith(sanitize_filename(info['title']))]
                 if possible_files:
                     filepath = os.path.join(DOWNLOAD_FOLDER, possible_files[0])
                     filename = possible_files[0]
                 else:
                     return jsonify({'error': 'Download completed but file not found'}), 500
-            
+
             # Send file to user
             response = send_file(
                 filepath,
                 as_attachment=True,
                 download_name=filename
             )
-            
+
             # Delete file after sending (cleanup)
             @response.call_on_close
             def cleanup():
@@ -301,9 +283,9 @@ def download_video():
                         os.remove(filepath)
                 except Exception as e:
                     print(f"Error cleaning up file: {e}")
-            
+
             return response
-            
+
     except Exception as e:
         return jsonify({'error': f'Download failed: {str(e)}'}), 500
 

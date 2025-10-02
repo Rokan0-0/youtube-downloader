@@ -151,9 +151,8 @@ function updateFilesizeDisplay() {
         return;
     }
     
-    const selectedQuality = qualitySelect.value;
-    const format = currentVideoData.formats.find(f => f.quality === selectedQuality);
-    
+    const selectedFormatId = qualitySelect.value;
+    const format = currentVideoData.formats.find(f => f.format_id === selectedFormatId);
     if (format && format.filesize > 0) {
         filesizeValue.textContent = formatFilesize(format.filesize);
     } else {
@@ -270,13 +269,12 @@ function displayVideoInfo(data) {
     videoDuration.textContent = `⏱️ ${formatDuration(data.duration)}`;
     videoViews.textContent = `👁️ ${formatViews(data.view_count)}`;
     
-    // Populate quality options
+    // Populate quality options using format_id for uniqueness
     qualitySelect.innerHTML = '';
-    
     if (data.formats && data.formats.length > 0) {
         data.formats.forEach(format => {
             const option = document.createElement('option');
-            option.value = format.quality;
+            option.value = format.format_id;
             const sizeText = format.filesize > 0 ? ` - ${formatFilesize(format.filesize)}` : '';
             option.textContent = `${format.quality} (${format.ext.toUpperCase()})${sizeText}`;
             qualitySelect.appendChild(option);
@@ -284,7 +282,7 @@ function displayVideoInfo(data) {
     } else {
         // Fallback if no formats found
         const option = document.createElement('option');
-        option.value = '360p';
+        option.value = 'default';
         option.textContent = '360p (MP4) - Default';
         qualitySelect.appendChild(option);
     }
