@@ -92,20 +92,10 @@ def get_video_info():
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
-            # Add headers to mimic a real browser
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            # Try web and mobile web clients which often have better format access
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['web', 'ios', 'android', 'mweb'],
-                    'player_skip': ['webpage'],
-                    'skip': ['hls', 'dash'],  # Skip adaptive formats for now
-                }
-            },
-            # Additional options
             'nocheckcertificate': True,
             'age_limit': None,
-            'format': 'all',  # Request all available formats
+            'format': 'all',
         }
         
         # Extract video information
@@ -120,31 +110,46 @@ def get_video_info():
                       f"vcodec: {f.get('vcodec')}, acodec: {f.get('acodec')}, filesize: {f.get('filesize')}")
             
             # Get available formats - be more inclusive to see ALL qualities
+
+
             formats = []
-            # Get all available formats from YouTube
             for f in info.get('formats', []):
-                vcodec = f.get('vcodec', 'none')
-                height = f.get('height')
-                # Skip formats without video or without height (storyboards, audio-only, etc.)
-                if vcodec == 'none' or not height or height < 144:
+                # Only include formats with a valid URL
+                if not f.get('url'):
                     continue
-                quality = f"{height}p"
+                vcodec = f.get('vcodec', 'none')
+                acodec = f.get('acodec', 'none')
+                height = f.get('height')
                 ext = f.get('ext', 'mp4')
                 filesize = f.get('filesize') or f.get('filesize_approx') or 0
-                has_audio = f.get('acodec') != 'none'
                 format_id = f.get('format_id')
-                formats.append({
-                    'format_id': format_id,
-                    'quality': quality,
-                    'ext': ext,
-                    'filesize': filesize,
-                    'filesize_mb': round(filesize / (1024 * 1024), 2) if filesize else 0,
-                    'has_audio': has_audio,
-                    'height': height
-                })
-            # Sort by height descending
-            formats.sort(key=lambda x: x['height'], reverse=True)
-            
+                # Video formats (has video, height >= 144)
+                if vcodec != 'none' and height and height >= 144:
+                    quality = f"{height}p"
+                    has_audio = acodec != 'none'
+                    formats.append({
+                        'format_id': format_id,
+                        'quality': quality,
+                        'ext': ext,
+                        'filesize': filesize,
+                        'filesize_mb': round(filesize / (1024 * 1024), 2) if filesize else 0,
+                        'has_audio': has_audio,
+                        'height': height
+                    })
+                # Audio-only formats (no video, has audio)
+                elif vcodec == 'none' and acodec != 'none':
+                    formats.append({
+                        'format_id': format_id,
+                        'quality': 'audio',
+                        'ext': ext,
+                        'filesize': filesize,
+                        'filesize_mb': round(filesize / (1024 * 1024), 2) if filesize else 0,
+                        'has_audio': True,
+                        'height': None
+                    })
+            # Sort: video by height desc, audio by filesize desc
+            formats.sort(key=lambda x: (x['height'] or 0), reverse=True)
+
             print(f"\n📊 Filtered formats for frontend: {len(formats)}")
             for fmt in formats:
                 print(f"   - {fmt['quality']} ({fmt['ext']}) - Audio: {fmt['has_audio']} - Height: {fmt['height']}")

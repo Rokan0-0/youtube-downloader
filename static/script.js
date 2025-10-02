@@ -316,8 +316,8 @@ async function downloadVideo() {
     // Get selected format (video or audio)
     const selectedFormat = document.querySelector('input[name="format"]:checked').value;
     
-    // Get selected quality (only for video)
-    const selectedQuality = qualitySelect.value;
+    // Get selected format_id (only for video)
+    const selectedFormatId = qualitySelect.value;
     
     // Show download progress
     downloadProgress.classList.add('show');
@@ -337,7 +337,7 @@ async function downloadVideo() {
             body: JSON.stringify({
                 url: url,
                 format: selectedFormat,
-                quality: selectedQuality
+                format_id: selectedFormatId
             }),
             signal: downloadAbortController.signal  // Enable cancellation
         });
